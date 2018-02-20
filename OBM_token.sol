@@ -14,7 +14,7 @@ contract OBMCrowdsale is ERC20, usingOraclize {
 
   string public name = "orbeum";
   string public symbol = "OBM";
-  uint8 public decimals = 18;
+  uint8 public decimals = 2;
   uint256 public totalSupply = 5500000000 * 10 ** uint(decimals);
   uint256 public publicAllocation = 4000000000 * 10 ** uint(decimals);
   uint256 public promotionBonus = 800000000 * 10 ** uint(decimals);
