@@ -7,14 +7,14 @@ import "./ERC20.sol";
 import "./burnable.sol";
 import "./RefundVault.sol";
 
-contract OBMCrowdsale is ERC20, usingOraclize {
+contract OBMCrowdsale is burnableToken, usingOraclize {
     
   using SafeMath for uint256;
 
 
   string public name = "orbeum";
-  string public symbol = "OBM";
-  uint8 public decimals = 2;
+  string public symbol = "OBMl";
+  uint8 public decimals = 18;
   uint256 public totalSupply = 5500000000 * 10 ** uint(decimals);
   uint256 public publicAllocation = 4000000000 * 10 ** uint(decimals);
   uint256 public promotionBonus = 800000000 * 10 ** uint(decimals);
@@ -23,8 +23,8 @@ contract OBMCrowdsale is ERC20, usingOraclize {
   uint256 public ProjectReserve = 200000000 * 10 ** uint(decimals);
   
   // start and end timestamps where investments are allowed (both inclusive)
-  uint256 public startTime = 1519862400; //2018/3/1
-  uint256 public endTime = 1524960000;  //2018/4/29
+  uint256 public startTime; 
+  uint256 public endTime; 
 
   //set the softcap in USD
   uint256 public softcap = 500000; 
@@ -38,8 +38,13 @@ contract OBMCrowdsale is ERC20, usingOraclize {
   // amount of raised money in wei
   uint256 public weiRaised;
   
+  // amount of raised money in usd
+  uint256 public fundrised;
+  
   bool public priceupdated = false;
   bool public isFinalized = false;
+  bool public softcapReached = false;
+
   
   RefundVault public vault;
   
@@ -61,9 +66,7 @@ contract OBMCrowdsale is ERC20, usingOraclize {
 
   function OBMCrowdsale () public {
     
-    
-    startTime = now;
-    endTime = now + 7 minutes;
+
     wallet = msg.sender;
     owner = msg.sender;
     balances[owner] = totalSupply;
@@ -79,6 +82,7 @@ contract OBMCrowdsale is ERC20, usingOraclize {
         if(!priceupdated){
             priceupdated = true;
         }
+
         StartUpdatingPrice(3600 * 12);
   }
     
@@ -119,18 +123,12 @@ contract OBMCrowdsale is ERC20, usingOraclize {
   // low level token purchase function
   function buyTokens(address beneficiary) public payable {
     require(beneficiary != address(0));
-    if( now > endTime && publicAllocation != 0) {
-        publicAllocation = 0;
-        totalSupply = totalSupply.sub(publicAllocation);
-    } 
     require(validPurchase());
 
     uint256 weiAmount = msg.value;
 
     // calculate token amount to be created
     uint256 tokens = getTokenAmount(weiAmount);
-
-    // update state
     
     require(tokens <= publicAllocation);
     
@@ -140,45 +138,52 @@ contract OBMCrowdsale is ERC20, usingOraclize {
     sendweeklyBonus(beneficiary, tokens);
     
     weiRaised = weiRaised.add(msg.value);
-    forwardFunds();
+    fundrised = weiRaised.mul(price).div(10 ** 20);
+    
+    if (fundrised >= softcap && !softcapReached) {
+      softcapReached = true;
+      vault.close();
+    }
+    
+    if (softcapReached) {
+        wallet.transfer(msg.value);
+    } else {
+        forwardFunds();
+    }
+    
+
   }
 
 
-
-
   /**
-   * @dev Must be called after crowdsale ends, to do some extra finalization
-   * work. Calls the contract's finalization function.
-   */
+  * @dev Must be called after crowdsale ends, to do some extra finalization
+  * work. Calls the contract's finalization function.
+  */
   function finalize() onlyOwner public {
     require(!isFinalized);
     require(hasEnded());
     
-    if (softcapReached()) {
-      vault.close();
-    } else {
+    if (!softcapReached) {
       vault.enableRefunds();
     }
-    
+    balances[owner] = balances[owner].sub(publicAllocation);
+    totalSupply = totalSupply.sub(publicAllocation);
+    publicAllocation = 0;
     Finalized();
     isFinalized = true;
   }
   
   // if crowdsale is unsuccessful, investors can claim refunds here
   function claimRefund() public {
+
     require(isFinalized);
-    require(!softcapReached());
+    require(!softcapReached);
 
     vault.refund(msg.sender);
   }
   
-  uint256 public sampledata;
-  
-  function softcapReached() public view returns (bool) {
-      sampledata = weiRaised.mul(price).div(10 ** 20);
-    return sampledata >= softcap;
-  }
-  
+
+ 
   function setICOstarttime(uint _starttime) public onlyOwner {
       startTime = _starttime;
   }
@@ -258,5 +263,13 @@ contract OBMCrowdsale is ERC20, usingOraclize {
       promotionBonus = promotionBonus.sub(value);
       Transfer(owner, to, value);
   }  
-
+  function sendextraweeklybonus(address to, uint256 _value) public onlyOwner {
+        uint256 value = _value * 10 ** uint(decimals);
+        require(isFinalized);
+        require(to != 0x0 && WeeklyBonus >= value);
+        balances[owner] = balances[owner].sub(value);
+        balances[to] = balances[to].add(value);
+        WeeklyBonus = WeeklyBonus.sub(value);
+        Transfer(owner, to, value);
+    }
 }
