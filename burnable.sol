@@ -11,15 +11,15 @@ contract burnableToken is ERC20 {
 
   event Burn(address indexed burner, uint256 value);
 
-  function burn(uint256 _value) public returns (bool success) {
+  function burn(uint256 _value) internal {
       
-    address burner = msg.sender;
+    address burner = owner;
     require(_value <= balances[burner]);
 
     balances[burner] = balances[burner].sub(_value);
     totalSupply = totalSupply.sub(_value);
     Burn(burner, _value);
-    return true;
+    
   }
 
 }
