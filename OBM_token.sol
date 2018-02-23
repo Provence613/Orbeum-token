@@ -12,7 +12,7 @@ contract OBMCrowdsale is burnableToken, usingOraclize {
   using SafeMath for uint256;
 
 
-  string public name = "orbeum";
+  string public name = "Orbeum";
   string public symbol = "OBM";
   uint8 public decimals = 18;
   uint256 public totalSupply = 5500000000 * 10 ** uint(decimals);
